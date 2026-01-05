@@ -1,5 +1,7 @@
-data/*
 .DS_Store
+data/*
+result/*
+result.mp4
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
