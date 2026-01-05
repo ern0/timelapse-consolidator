@@ -1,34 +1,33 @@
-I've created all five Python programs as requested:
+I've created all five Python scripts as requested:
 
-## Individual Scripts:
+## Scripts Created:
 
-1. **extract_iframes_from_mp4.py** - Extracts every nth i-frame from an MP4 file and saves them as JPGs
-2. **delete_dark_images.py** - Scans JPEGs and deletes images with low saturation (dark images)
-3. **collect_selected_images.py** - Collects JPG files and appends them to an MP4 video
-4. **process.py** - Main orchestrator that processes directories recursively and calls the other scripts
-5. **install.py** - Single installer file that creates all the scripts at once
+1. **extract_iframes_from_mp4.py** - Extracts every nth I-frame from MP4 files
+2. **delete_dark_images.py** - Removes images with low saturation (dark/desaturated images)
+3. **collect_selected_images.py** - Combines JPG files into an MP4 video
+4. **process.py** - Main orchestration script that processes directories recursively
+5. **install.py** - Single-file installer that creates all the scripts
 
-## Key Features:
+## Features:
 
 - All scripts have proper shebangs (`#!/usr/bin/env python3`)
-- Proper argument parsing with `argparse`
-- Alphabetical processing order maintained
-- Working directory cleanup before processing
-- Uses ffmpeg for video operations
-- Uses Pillow (without numpy) for image analysis
-- Appends to existing result MP4 if it exists
-- Recursive directory processing
+- Working directory is cleaned before processing
+- Files are processed in alphabetical order
+- Uses ffmpeg for video operations (no `-vsync` arg in collect script)
+- Uses Pillow without numpy for saturation calculation
+- Result MP4 is deleted before processing starts
+- Appends to existing MP4 if it exists
 
 ## Usage:
 
-Run the installer first:
 ```bash
+# Install all scripts
 python3 install.py
-```
 
-Then process your videos:
-```bash
+# Run the main processor
 python3 process.py --source ./videos --nth 20 --workdir ./temp --result output.mp4
 ```
 
-The scripts will extract i-frames, filter out dark images, and compile the selected frames into a final video.
+## Requirements:
+- `ffmpeg` must be installed on your system
+- Python package: `Pillow` (`pip install Pillow`)
