@@ -1,119 +1,50 @@
 #!/usr/bin/env python3
-"""
-Extract I-frames from MP4 video files and save as JPEG images.
-Requires: ffmpeg-python (install with: pip install ffmpeg-python)
-"""
-
 import argparse
-import os
-import sys
 import subprocess
-from pathlib import Path
+import os
+import shutil
 
+def extract_iframes(file_path, nth, workdir):
+    # Create working directory if it doesn't exist
+    os.makedirs(workdir, exist_ok=True)
 
-def extract_iframes(video_path, output_dir, nth_frame=10):
-    """
-    Extract every Nth I-frame from video and save as JPEG.
+    # Delete all files from working directory
+    for filename in os.listdir(workdir):
+        file_path_to_delete = os.path.join(workdir, filename)
+        try:
+            if os.path.isfile(file_path_to_delete):
+                os.unlink(file_path_to_delete)
+        except Exception as e:
+            print(f"Error deleting {file_path_to_delete}: {e}")
 
-    Args:
-        video_path: Path to input MP4 file
-        output_dir: Directory to save extracted frames
-        nth_frame: Extract every Nth I-frame (default: 10)
-    """
-    # Create output directory if it doesn't exist
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Extract every nth i-frame using ffmpeg
+    output_pattern = os.path.join(workdir, "frame_%06d.jpg")
 
-    # Verify input file exists
-    if not os.path.exists(video_path):
-        print(f"Error: Video file '{video_path}' not found")
-        sys.exit(1)
-
-    # Output pattern for frames
-    output_pattern = output_dir / "iframe_%04d.jpg"
-
-    # Build ffmpeg command
-    # -skip_frame nokey: Only decode I-frames (key frames)
-    # select='not(mod(n\,{nth_frame}))': Select every Nth frame
     cmd = [
         'ffmpeg',
-        '-skip_frame', 'nokey',  # Only process I-frames
-        '-i', video_path,
-        '-vf', f"select='not(mod(n\\,{nth_frame}))'",  # Select every Nth I-frame
-        '-vsync', 'vfr',  # Variable frame rate (prevents duplicate frames)
-        '-q:v', '2',  # JPEG quality (2 is high quality, 1-31 range)
-        str(output_pattern)
+        '-i', file_path,
+        '-vf', f'select=eq(pict_type\\,I)*not(mod(n\\,{nth}))',
+        '-vsync', '0',
+        '-q:v', '2',
+        output_pattern
     ]
 
-    print(f"Extracting every {nth_frame}th I-frame from: {video_path}")
-    print(f"Output directory: {output_dir}")
-    print(f"Running command: {' '.join(cmd)}\n")
-
     try:
-        # Run ffmpeg command
-        result = subprocess.run(
-            cmd,
-            check=True,
-            capture_output=True,
-            text=True
-        )
-
-        # Count extracted frames
-        frame_count = len(list(output_dir.glob("iframe_*.jpg")))
-        print(f"\nSuccessfully extracted {frame_count} I-frames")
-        print(f"Frames saved to: {output_dir}")
-
+        subprocess.run(cmd, check=True, capture_output=True)
+        print(f"Successfully extracted i-frames from {file_path}")
     except subprocess.CalledProcessError as e:
-        print(f"Error running ffmpeg: {e}")
-        print(f"stderr: {e.stderr}")
-        sys.exit(1)
-    except FileNotFoundError:
-        print("Error: ffmpeg not found. Please install ffmpeg:")
-        print("  Ubuntu/Debian: sudo apt-get install ffmpeg")
-        print("  macOS: brew install ffmpeg")
-        print("  Windows: Download from https://ffmpeg.org/download.html")
-        sys.exit(1)
-
+        print(f"Error extracting frames: {e}")
+        print(f"stderr: {e.stderr.decode()}")
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Extract I-frames from MP4 video files',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s video.mp4 output_frames
-  %(prog)s video.mp4 output_frames --nth 5
-  %(prog)s input.mp4 ./frames -n 20
-        """
-    )
-
-    parser.add_argument(
-        'video',
-        help='Path to input MP4 file'
-    )
-
-    parser.add_argument(
-        'output_dir',
-        help='Directory to save extracted frames (will be created if needed)'
-    )
-
-    parser.add_argument(
-        '-n', '--nth',
-        type=int,
-        default=10,
-        metavar='N',
-        help='Extract every Nth I-frame (default: 10)'
-    )
+    parser = argparse.ArgumentParser(description='Extract every nth i-frame from MP4 file')
+    parser.add_argument('--file', required=True, help='Input MP4 file path')
+    parser.add_argument('--nth', type=int, default=20, help='Extract every nth i-frame')
+    parser.add_argument('--workdir', required=True, help='Working directory for output JPGs')
 
     args = parser.parse_args()
 
-    # Validate nth_frame
-    if args.nth < 1:
-        print("Error: --nth must be >= 1")
-        sys.exit(1)
-
-    extract_iframes(args.video, args.output_dir, args.nth)
-
+    extract_iframes(args.file, args.nth, args.workdir)
 
 if __name__ == '__main__':
     main()

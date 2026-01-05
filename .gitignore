@@ -1,6 +1,6 @@
 .DS_Store
 data/*
-result/*
+tmp/*
 result.mp4
 
 # Byte-compiled / optimized / DLL files

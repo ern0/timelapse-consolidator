@@ -1,94 +1,70 @@
 #!/usr/bin/env python3
-"""
-Scan directory for JPG files and delete images with low saturation.
-Deletes images where median pixel saturation is less than 10%.
-"""
-
+import argparse
 import os
-import sys
-from pathlib import Path
 from PIL import Image
-import statistics
-
-
-def rgb_to_hsv(r, g, b):
-    """Convert RGB values (0-255) to HSV. Returns S as percentage (0-100)."""
-    r, g, b = r / 255.0, g / 255.0, b / 255.0
-    max_c = max(r, g, b)
-    min_c = min(r, g, b)
-    diff = max_c - min_c
-
-    # Saturation
-    if max_c == 0:
-        s = 0
-    else:
-        s = (diff / max_c) * 100
-
-    return s
-
 
 def calculate_median_saturation(image_path):
-    """Calculate the median saturation of all pixels in an image."""
     try:
-        with Image.open(image_path) as img:
-            # Convert to RGB if needed
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
+        img = Image.open(image_path)
 
-            # Get all pixels
-            pixels = list(img.getdata())
+        # Convert to HSV to get saturation
+        hsv_img = img.convert('HSV')
 
-            # Calculate saturation for each pixel
-            saturations = [rgb_to_hsv(r, g, b) for r, g, b in pixels]
+        # Get saturation channel (index 1)
+        pixels = list(hsv_img.getdata())
+        saturations = [p[1] for p in pixels]
 
-            # Return median
-            return statistics.median(saturations)
+        # Calculate median manually without numpy
+        sorted_saturations = sorted(saturations)
+        n = len(sorted_saturations)
+
+        if n % 2 == 0:
+            median = (sorted_saturations[n//2 - 1] + sorted_saturations[n//2]) / 2.0
+        else:
+            median = sorted_saturations[n//2]
+
+        # Convert to percentage (HSV saturation is 0-255)
+        median_percent = (median / 255.0) * 100.0
+
+        return median_percent
     except Exception as e:
         print(f"Error processing {image_path}: {e}")
         return None
 
-
-def process_directory(directory):
-    """Scan directory and delete low-saturation JPG files."""
-    directory = Path(directory)
-
-    if not directory.exists():
-        print(f"Error: Directory '{directory}' does not exist.")
-        return
-
-    # Find all JPG files
-    jpg_files = list(directory.glob("*.jpg")) + list(directory.glob("*.JPG")) + \
-                list(directory.glob("*.jpeg")) + list(directory.glob("*.JPEG"))
-
-    print(f"Found {len(jpg_files)} JPG files in {directory}")
-
+def delete_dark_images(workdir, saturation_threshold):
     deleted_count = 0
+    processed_count = 0
 
-    for img_file in jpg_files:
-        median_sat = calculate_median_saturation(img_file)
+    # Get all JPEG files sorted
+    files = sorted([f for f in os.listdir(workdir) if f.lower().endswith(('.jpg', '.jpeg'))])
 
-        if median_sat is None:
-            continue
+    for filename in files:
+        file_path = os.path.join(workdir, filename)
+        processed_count += 1
 
-        print(f"{img_file.name}: median saturation = {median_sat:.2f}%", end="")
+        median_saturation = calculate_median_saturation(file_path)
 
-        if median_sat < 10.0:
-            try:
-                os.remove(img_file)
-                print(" -> DELETED")
-                deleted_count += 1
-            except Exception as e:
-                print(f" -> Error deleting: {e}")
-        else:
-            print(" -> kept")
+        if median_saturation is not None:
+            if median_saturation < saturation_threshold:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                    print(f"Deleted {filename} (saturation: {median_saturation:.2f}%)")
+                except Exception as e:
+                    print(f"Error deleting {filename}: {e}")
+            else:
+                print(f"Kept {filename} (saturation: {median_saturation:.2f}%)")
 
-    print(f"\nProcessing complete. Deleted {deleted_count} image(s).")
+    print(f"\nProcessed {processed_count} images, deleted {deleted_count}")
 
+def main():
+    parser = argparse.ArgumentParser(description='Delete dark images based on saturation')
+    parser.add_argument('--workdir', required=True, help='Working directory with JPEG files')
+    parser.add_argument('--saturation', type=float, default=10.0, help='Saturation threshold percentage')
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: ./script.py <directory>")
-        sys.exit(1)
+    args = parser.parse_args()
 
-    target_dir = sys.argv[1]
-    process_directory(target_dir)
+    delete_dark_images(args.workdir, args.saturation)
+
+if __name__ == '__main__':
+    main()

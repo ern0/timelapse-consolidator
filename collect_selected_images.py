@@ -1,111 +1,114 @@
 #!/usr/bin/env python3
-"""
-Convert JPG images from a directory to an MP4 video file.
-Images are processed in alphabetical order.
-"""
-
 import argparse
 import subprocess
-import sys
-from pathlib import Path
+import os
+import tempfile
 
+def collect_images_to_video(workdir, result):
+    # Get all JPG files in alphabetical order
+    jpg_files = sorted([f for f in os.listdir(workdir) if f.lower().endswith(('.jpg', '.jpeg'))])
 
-def create_video_from_images(input_dir, output_file, fps=30):
-    """
-    Create an MP4 video from JPG images in a directory.
-    
-    Args:
-        input_dir: Directory containing JPG images
-        output_file: Output MP4 file path
-        fps: Frames per second for the output video
-    """
-    input_path = Path(input_dir)
-    
-    if not input_path.exists():
-        print(f"Error: Directory '{input_dir}' does not exist", file=sys.stderr)
-        sys.exit(1)
-    
-    if not input_path.is_dir():
-        print(f"Error: '{input_dir}' is not a directory", file=sys.stderr)
-        sys.exit(1)
-    
-    # Get all JPG files and sort alphabetically
-    jpg_files = sorted(input_path.glob('*.jpg')) + sorted(input_path.glob('*.JPG'))
-    
     if not jpg_files:
-        print(f"Error: No JPG files found in '{input_dir}'", file=sys.stderr)
-        sys.exit(1)
-    
-    print(f"Found {len(jpg_files)} JPG files")
-    
-    # Create a temporary file list for ffmpeg
-    list_file = Path(output_file).parent / 'filelist.txt'
-    
-    try:
-        with open(list_file, 'w') as f:
-            for jpg in jpg_files:
-                # Use absolute paths and escape single quotes
-                abs_path = jpg.absolute()
-                f.write(f"file '{abs_path}'\n")
-                f.write(f"duration {1/fps}\n")
-            # Add last image again for proper duration
-            if jpg_files:
-                f.write(f"file '{jpg_files[-1].absolute()}'\n")
-        
-        # Use ffmpeg to create video
-        cmd = [
-            'ffmpeg',
-            '-f', 'concat',
-            '-safe', '0',
-            '-i', str(list_file),
-            '-vsync', 'vfr',
-            '-pix_fmt', 'yuv420p',
-            '-c:v', 'libx264',
-            '-y',  # Overwrite output file
-            str(output_file)
-        ]
-        
-        print(f"Creating video: {output_file}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            print(f"Error: ffmpeg failed with error:\n{result.stderr}", file=sys.stderr)
-            sys.exit(1)
-        
-        print(f"Successfully created video: {output_file}")
-        
-    except FileNotFoundError:
-        print("Error: ffmpeg not found. Please install ffmpeg.", file=sys.stderr)
-        sys.exit(1)
-    finally:
-        # Clean up temporary file
-        if list_file.exists():
-            list_file.unlink()
+        print("No JPG files found in working directory")
+        return
 
+    print(f"Found {len(jpg_files)} images to process")
+
+    # Create a temporary file list for ffmpeg
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        list_file = f.name
+        for jpg_file in jpg_files:
+            jpg_path = os.path.join(workdir, jpg_file)
+            # Use absolute path and escape special characters
+            abs_path = os.path.abspath(jpg_path)
+            f.write(f"file '{abs_path}'\n")
+
+    try:
+        # Check if result file exists
+        if os.path.exists(result):
+            print(f"Appending to existing video: {result}")
+
+            # Create temporary output for new images
+            temp_new = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False).name
+
+            # Convert new images to video at 25 fps
+            cmd_new = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', list_file,
+                '-r', '25',
+                '-pix_fmt', 'yuv420p',
+                '-y',
+                temp_new
+            ]
+            subprocess.run(cmd_new, check=True, capture_output=True)
+
+            # Create concat list for merging
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                merge_list = f.name
+                f.write(f"file '{os.path.abspath(result)}'\n")
+                f.write(f"file '{os.path.abspath(temp_new)}'\n")
+
+            # Merge videos
+            temp_output = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False).name
+            cmd_merge = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', merge_list,
+                '-c', 'copy',
+                '-y',
+                temp_output
+            ]
+            subprocess.run(cmd_merge, check=True, capture_output=True)
+
+            # Replace original with merged
+            os.replace(temp_output, result)
+
+            # Cleanup
+            os.unlink(temp_new)
+            os.unlink(merge_list)
+
+        else:
+            print(f"Creating new video: {result}")
+
+            # Create directory for result if it doesn't exist
+            result_dir = os.path.dirname(result)
+            if result_dir:
+                os.makedirs(result_dir, exist_ok=True)
+
+            # Create video from images at 25 fps
+            cmd = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', list_file,
+                '-r', '25',
+                '-pix_fmt', 'yuv420p',
+                '-y',
+                result
+            ]
+            subprocess.run(cmd, check=True, capture_output=True)
+
+        print(f"Successfully created/updated video: {result}")
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error creating video: {e}")
+        print(f"stderr: {e.stderr.decode()}")
+    finally:
+        # Cleanup list file
+        if os.path.exists(list_file):
+            os.unlink(list_file)
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Convert JPG images to MP4 video'
-    )
-    parser.add_argument(
-        'input_dir',
-        help='Directory containing JPG images'
-    )
-    parser.add_argument(
-        'output_file',
-        help='Output MP4 file path'
-    )
-    parser.add_argument(
-        '--fps',
-        type=int,
-        default=30,
-        help='Frames per second (default: 30)'
-    )
-    
-    args = parser.parse_args()
-    
-    create_video_from_images(args.input_dir, args.output_file, args.fps)
+    parser = argparse.ArgumentParser(description='Collect JPG files into MP4 video')
+    parser.add_argument('--workdir', required=True, help='Working directory with JPG files')
+    parser.add_argument('--result', required=True, help='Output MP4 file path')
 
+    args = parser.parse_args()
+
+    collect_images_to_video(args.workdir, args.result)
 
 if __name__ == '__main__':
     main()
