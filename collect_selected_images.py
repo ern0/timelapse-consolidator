@@ -17,8 +17,10 @@ def collect_images_to_video(workdir, result):
         print("No JPG files found in working directory")
         return
 
+    result_dir = os.path.dirname(os.path.abspath(result))
+
     # Create a temporary file list for ffmpeg
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', dir=result_dir) as f:
         list_file = f.name
         for jpg in jpg_files:
             # Write full path and escape single quotes
@@ -26,61 +28,62 @@ def collect_images_to_video(workdir, result):
             f.write(f"file '{full_path}'\n")
 
     try:
-        if os.path.exists(result):
-            # Append to existing video
-            # First create temp video from images
-            temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+        with open('ffmpeg.log', 'a') as log:
+            if os.path.exists(result):
+                # Append to existing video
+                # First create temp video from images
+                temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', dir=result_dir).name
 
-            cmd_create = [
-                'ffmpeg',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', list_file,
-                '-r', '25',
-                '-pix_fmt', 'yuv420p',
-                '-y',
-                temp_video
-            ]
-            subprocess.run(cmd_create, check=True)
+                cmd_create = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', list_file,
+                    '-r', '25',
+                    '-pix_fmt', 'yuv420p',
+                    '-y',
+                    temp_video
+                ]
+                subprocess.run(cmd_create, check=True, stdout=log, stderr=subprocess.STDOUT)
 
-            # Create concat list for existing and new video
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-                concat_list = f.name
-                f.write(f"file '{os.path.abspath(result)}'\n")
-                f.write(f"file '{os.path.abspath(temp_video)}'\n")
+                # Create concat list for existing and new video
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', dir=result_dir) as f:
+                    concat_list = f.name
+                    f.write(f"file '{os.path.abspath(result)}'\n")
+                    f.write(f"file '{os.path.abspath(temp_video)}'\n")
 
-            # Concat videos
-            temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-            cmd_concat = [
-                'ffmpeg',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', concat_list,
-                '-c', 'copy',
-                '-y',
-                temp_output
-            ]
-            subprocess.run(cmd_concat, check=True)
+                # Concat videos
+                temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', dir=result_dir).name
+                cmd_concat = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', concat_list,
+                    '-c', 'copy',
+                    '-y',
+                    temp_output
+                ]
+                subprocess.run(cmd_concat, check=True, stdout=log, stderr=subprocess.STDOUT)
 
-            # Replace original with concatenated result
-            os.replace(temp_output, result)
+                # Replace original with concatenated result
+                os.replace(temp_output, result)
 
-            # Cleanup
-            os.unlink(temp_video)
-            os.unlink(concat_list)
-        else:
-            # Create new video from images
-            cmd = [
-                'ffmpeg',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', list_file,
-                '-r', '25',
-                '-pix_fmt', 'yuv420p',
-                '-y',
-                result
-            ]
-            subprocess.run(cmd, check=True)
+                # Cleanup
+                os.unlink(temp_video)
+                os.unlink(concat_list)
+            else:
+                # Create new video from images
+                cmd = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', list_file,
+                    '-r', '25',
+                    '-pix_fmt', 'yuv420p',
+                    '-y',
+                    result
+                ]
+                subprocess.run(cmd, check=True, stdout=log, stderr=subprocess.STDOUT)
 
         print(f"Successfully saved/appended to {result}")
     finally:

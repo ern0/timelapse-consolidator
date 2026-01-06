@@ -28,7 +28,8 @@ def extract_iframes(file_path, nth, workdir):
         output_pattern
     ]
 
-    subprocess.run(cmd, check=True)
+    with open('ffmpeg.log', 'a') as log:
+        subprocess.run(cmd, check=True, stdout=log, stderr=subprocess.STDOUT)
     print(f"Extracted I-frames to {workdir}")
 
 if __name__ == "__main__":

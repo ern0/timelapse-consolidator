@@ -35,7 +35,8 @@ def extract_iframes(file_path, nth, workdir):
         output_pattern
     ]
 
-    subprocess.run(cmd, check=True)
+    with open('ffmpeg.log', 'a') as log:
+        subprocess.run(cmd, check=True, stdout=log, stderr=subprocess.STDOUT)
     print(f"Extracted I-frames to {workdir}")
 
 if __name__ == "__main__":
@@ -87,19 +88,22 @@ def delete_dark_images(workdir, saturation_threshold):
         return
 
     files = [f for f in os.listdir(workdir) if f.lower().endswith(('.jpg', '.jpeg'))]
+    total = len(files)
 
     deleted_count = 0
-    for filename in files:
+    for index, filename in enumerate(files, start=1):
         filepath = os.path.join(workdir, filename)
         try:
             saturation = calculate_saturation(filepath)
+            print(f"[{index}/{total}] {filename} (saturation: {saturation:.2f}%)", end="  \\r")
             if saturation < saturation_threshold:
                 os.remove(filepath)
                 deleted_count += 1
-                print(f"Deleted {filename} (saturation: {saturation:.2f}%)")
         except Exception as e:
-            print(f"Error processing {filename}: {e}")
+            print(f"\\nError processing {filename}: {e}")
 
+    if total > 0:
+        print()
     print(f"Deleted {deleted_count} dark images")
 
 if __name__ == "__main__":
@@ -130,8 +134,10 @@ def collect_images_to_video(workdir, result):
         print("No JPG files found in working directory")
         return
 
+    result_dir = os.path.dirname(os.path.abspath(result))
+
     # Create a temporary file list for ffmpeg
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', dir=result_dir) as f:
         list_file = f.name
         for jpg in jpg_files:
             # Write full path and escape single quotes
@@ -139,61 +145,62 @@ def collect_images_to_video(workdir, result):
             f.write(f"file '{full_path}'\\n")
 
     try:
-        if os.path.exists(result):
-            # Append to existing video
-            # First create temp video from images
-            temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+        with open('ffmpeg.log', 'a') as log:
+            if os.path.exists(result):
+                # Append to existing video
+                # First create temp video from images
+                temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', dir=result_dir).name
 
-            cmd_create = [
-                'ffmpeg',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', list_file,
-                '-r', '25',
-                '-pix_fmt', 'yuv420p',
-                '-y',
-                temp_video
-            ]
-            subprocess.run(cmd_create, check=True)
+                cmd_create = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', list_file,
+                    '-r', '25',
+                    '-pix_fmt', 'yuv420p',
+                    '-y',
+                    temp_video
+                ]
+                subprocess.run(cmd_create, check=True, stdout=log, stderr=subprocess.STDOUT)
 
-            # Create concat list for existing and new video
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-                concat_list = f.name
-                f.write(f"file '{os.path.abspath(result)}'\\n")
-                f.write(f"file '{os.path.abspath(temp_video)}'\\n")
+                # Create concat list for existing and new video
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', dir=result_dir) as f:
+                    concat_list = f.name
+                    f.write(f"file '{os.path.abspath(result)}'\\n")
+                    f.write(f"file '{os.path.abspath(temp_video)}'\\n")
 
-            # Concat videos
-            temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-            cmd_concat = [
-                'ffmpeg',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', concat_list,
-                '-c', 'copy',
-                '-y',
-                temp_output
-            ]
-            subprocess.run(cmd_concat, check=True)
+                # Concat videos
+                temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', dir=result_dir).name
+                cmd_concat = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', concat_list,
+                    '-c', 'copy',
+                    '-y',
+                    temp_output
+                ]
+                subprocess.run(cmd_concat, check=True, stdout=log, stderr=subprocess.STDOUT)
 
-            # Replace original with concatenated result
-            os.replace(temp_output, result)
+                # Replace original with concatenated result
+                os.replace(temp_output, result)
 
-            # Cleanup
-            os.unlink(temp_video)
-            os.unlink(concat_list)
-        else:
-            # Create new video from images
-            cmd = [
-                'ffmpeg',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', list_file,
-                '-r', '25',
-                '-pix_fmt', 'yuv420p',
-                '-y',
-                result
-            ]
-            subprocess.run(cmd, check=True)
+                # Cleanup
+                os.unlink(temp_video)
+                os.unlink(concat_list)
+            else:
+                # Create new video from images
+                cmd = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', list_file,
+                    '-r', '25',
+                    '-pix_fmt', 'yuv420p',
+                    '-y',
+                    result
+                ]
+                subprocess.run(cmd, check=True, stdout=log, stderr=subprocess.STDOUT)
 
         print(f"Successfully saved/appended to {result}")
     finally:
@@ -301,12 +308,12 @@ def main():
         try:
             with open(filename, 'w') as f:
                 f.write(content)
-            os.chmod(filename, 0o755)  # Make executable
-            print("✓")
+            os.chmod(filename, 0o755)
+            print("OK")
         except Exception as e:
-            print(f"✗ Error: {e}")
+            print(f"Error: {e}")
 
-    print("\n" + "=" * 50)
+    print("=" * 50)
     print("Installation complete!")
     print("\nCreated files:")
     for filename in SCRIPTS.keys():
