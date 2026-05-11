@@ -44,8 +44,14 @@ create single file install.py, it saves all script files
 
 ## V2
 
+Make changes:
 ```
 redirect ffmpeg outputs to ffmpeg.log
 ```
 
 Also applied some cosmetics by hand.
+
+Update the installer:
+```
+create single file install.py, it saves all script files
+```
