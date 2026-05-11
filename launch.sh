@@ -1,6 +1,8 @@
 #!/bin/bash
 clear
 
+rm -f video.mp4
+
 ./process.py \
     --source data \
     --nth 30 \

@@ -1,5 +1,7 @@
 # The prompt
 
+## V1
+
 ```
 write python program extract_iframes_from_mp4.py
 open mp4 file specified as arg --file
@@ -39,3 +41,11 @@ add shebang
 
 create single file install.py, it saves all script files
 ```
+
+## V2
+
+```
+redirect ffmpeg outputs to ffmpeg.log
+```
+
+Also applied some cosmetics by hand.

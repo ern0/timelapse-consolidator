@@ -46,10 +46,12 @@ def delete_dark_images(workdir, saturation_threshold):
             if saturation < saturation_threshold:
                 os.remove(filepath)
                 deleted_count += 1
-                print(f"Deleted {filename} (saturation: {saturation:.2f}%)")
+                print(f"Deleted {filename} (saturation: {saturation:.2f}%)", end="\r")
         except Exception as e:
-            print(f"Error processing {filename}: {e}")
+            print(f"\nError processing {filename}: {e}")
 
+    if deleted_count > 0:
+        print()
     print(f"Deleted {deleted_count} dark images")
 
 if __name__ == "__main__":
