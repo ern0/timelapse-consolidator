@@ -37,20 +37,21 @@ def delete_dark_images(workdir, saturation_threshold):
         return
 
     files = [f for f in os.listdir(workdir) if f.lower().endswith(('.jpg', '.jpeg'))]
+    total = len(files)
 
     deleted_count = 0
-    for filename in files:
+    for index, filename in enumerate(files, start=1):
         filepath = os.path.join(workdir, filename)
         try:
             saturation = calculate_saturation(filepath)
+            print(f"[{index}/{total}] {filename} (saturation: {saturation:.2f}%)", end="  \r")
             if saturation < saturation_threshold:
                 os.remove(filepath)
                 deleted_count += 1
-                print(f"Deleted {filename} (saturation: {saturation:.2f}%)", end="\r")
         except Exception as e:
             print(f"\nError processing {filename}: {e}")
 
-    if deleted_count > 0:
+    if total > 0:
         print()
     print(f"Deleted {deleted_count} dark images")
 

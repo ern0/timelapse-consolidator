@@ -17,8 +17,10 @@ def collect_images_to_video(workdir, result):
         print("No JPG files found in working directory")
         return
 
+    result_dir = os.path.dirname(os.path.abspath(result))
+
     # Create a temporary file list for ffmpeg
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', dir=result_dir) as f:
         list_file = f.name
         for jpg in jpg_files:
             # Write full path and escape single quotes
@@ -30,7 +32,7 @@ def collect_images_to_video(workdir, result):
             if os.path.exists(result):
                 # Append to existing video
                 # First create temp video from images
-                temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+                temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', dir=result_dir).name
 
                 cmd_create = [
                     'ffmpeg',
@@ -45,13 +47,13 @@ def collect_images_to_video(workdir, result):
                 subprocess.run(cmd_create, check=True, stdout=log, stderr=subprocess.STDOUT)
 
                 # Create concat list for existing and new video
-                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', dir=result_dir) as f:
                     concat_list = f.name
                     f.write(f"file '{os.path.abspath(result)}'\n")
                     f.write(f"file '{os.path.abspath(temp_video)}'\n")
 
                 # Concat videos
-                temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+                temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', dir=result_dir).name
                 cmd_concat = [
                     'ffmpeg',
                     '-f', 'concat',
